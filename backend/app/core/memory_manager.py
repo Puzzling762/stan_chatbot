@@ -7,7 +7,7 @@ import re
 class MemoryManager:
     def __init__(self):
         self.short_term_buffer = {}  # user_id -> list of recent messages
-        self.max_buffer_size = 6  # Keep only last 6 messages for immediate context
+        self.max_buffer_size = 8  # Increased from 6 to 8 for better context
     
     def save_interaction(self, user_id: str, message: str, turn_id: int, is_user: bool = True):
         """
@@ -38,54 +38,89 @@ class MemoryManager:
     def _extract_key_info(self, message: str, is_user: bool) -> str:
         """
         Extract only the KEY information from a message.
-        Examples:
-        - "My name is Alex" â†’ "User's name is Alex"
-        - "I love Attack on Titan" â†’ "Loves anime: Attack on Titan"
-        - "My favorite player is Ronaldo" â†’ "Favorite football player: Ronaldo"
         """
         if not is_user:
             # Don't save STAN's responses to long-term memory
-            # (reduces clutter and "you mentioned" references)
             return ""
         
-        message_lower = message.lower()
+        message_lower = message.lower().strip()
         
         # Pattern 1: Names
-        name_match = re.search(r"my name is (\w+)", message_lower)
-        if name_match:
-            return f"User's name: {name_match.group(1).title()}"
+        name_patterns = [
+            r"my name is (\w+)",
+            r"i'?m (\w+)",
+            r"call me (\w+)",
+            r"i am (\w+)"
+        ]
+        for pattern in name_patterns:
+            match = re.search(pattern, message_lower)
+            if match and len(match.group(1)) > 2:  # Avoid "am", "is" etc
+                name = match.group(1).title()
+                if name not in ['Into', 'From', 'Love', 'Like']:  # Filter common verbs
+                    return f"User's name: {name}"
         
-        # Pattern 2: Favorites
-        fav_patterns = [
-            (r"my fav(?:orite)? (\w+) is (.+?)(?:\.|$)", "Favorite {0}: {1}"),
-            (r"i love (.+?)(?:\.|$)", "Loves: {0}"),
-            (r"i like (.+?)(?:\.|$)", "Likes: {0}"),
-            (r"i'm a (?:big )?fan of (.+?)(?:\.|$)", "Fan of: {0}"),
-            (r"i hate (.+?)(?:\.|$)", "Dislikes: {0}"),
+        # Pattern 2: Anime/Shows/Movies
+        anime_patterns = [
+            (r"i love (?:watching |the anime )?([^,.!?]+?)(?:\s+anime|\s+show)?(?:\.|,|$)", "Loves anime: {0}"),
+            (r"i like (?:watching |the anime )?([^,.!?]+?)(?:\s+anime|\s+show)?(?:\.|,|$)", "Likes anime: {0}"),
+            (r"i'?m (?:really )?into (?:the anime )?([^,.!?]+?)(?:\s+anime)?(?:\.|,|$)", "Into anime: {0}"),
+            (r"my fav(?:orite)? anime is ([^,.!?]+)", "Favorite anime: {0}"),
         ]
         
-        for pattern, template in fav_patterns:
+        for pattern, template in anime_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                content = match.group(1).strip()
+                # Clean up common words
+                if len(content) > 2 and content not in ['it', 'that', 'this', 'anime']:
+                    return template.format(content.title())
+        
+        # Pattern 3: Sports teams/clubs
+        sports_patterns = [
+            (r"my fav(?:orite)? (?:football |soccer )?(?:team|club) is ([^,.!?]+)", "Favorite club: {0}"),
+            (r"i support ([^,.!?]+?)(?:\s+(?:fc|football club))?(?:\.|,|$)", "Supports: {0}"),
+            (r"i'?m a(?: big)? ([^,.!?]+?) fan", "Fan of: {0}"),
+        ]
+        
+        for pattern, template in sports_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                content = match.group(1).strip()
+                if len(content) > 2:
+                    return template.format(content.title())
+        
+        # Pattern 4: General favorites/interests
+        general_patterns = [
+            (r"my fav(?:orite)? (\w+) is ([^,.!?]+)", "Favorite {0}: {1}"),
+            (r"i love ([^,.!?]+?)(?:\.|,|$)", "Loves: {0}"),
+            (r"i like ([^,.!?]+?)(?:\.|,|$)", "Likes: {0}"),
+            (r"i hate ([^,.!?]+?)(?:\.|,|$)", "Dislikes: {0}"),
+        ]
+        
+        for pattern, template in general_patterns:
             match = re.search(pattern, message_lower)
             if match:
                 if "{0}" in template and "{1}" in template:
-                    return template.format(match.group(1).title(), match.group(2).strip())
+                    return template.format(match.group(1).strip(), match.group(2).strip().title())
                 else:
-                    return template.format(match.group(1).strip())
+                    content = match.group(1).strip()
+                    if len(content) > 2:
+                        return template.format(content.title())
         
-        # Pattern 3: Personal info
+        # Pattern 5: Personal info
         info_patterns = [
-            (r"i (?:study|am studying) (.+)", "Studies: {0}"),
-            (r"i (?:work|am working) (?:as |at )?(.+)", "Works: {0}"),
-            (r"i live in (.+)", "Lives in: {0}"),
-            (r"i'm from (.+)", "From: {0}"),
+            (r"i (?:study|am studying) ([^,.!?]+)", "Studies: {0}"),
+            (r"i (?:work|am working) (?:as |at )?([^,.!?]+)", "Works: {0}"),
+            (r"i live in ([^,.!?]+)", "Lives in: {0}"),
+            (r"i'?m from ([^,.!?]+)", "From: {0}"),
         ]
         
         for pattern, template in info_patterns:
             match = re.search(pattern, message_lower)
             if match:
-                return template.format(match.group(1).strip())
+                return template.format(match.group(1).strip().title())
         
-        # If no pattern matched but it's a substantial message, save as-is
+        # If message is substantial but no pattern matched, save as-is
         if len(message.split()) >= 5:
             return message
         
@@ -108,14 +143,14 @@ class MemoryManager:
         if user_id not in self.short_term_buffer or not self.short_term_buffer[user_id]:
             return ""
         
-        # Return last 4 messages (2 exchanges)
-        recent = self.short_term_buffer[user_id][-4:]
+        # Return last 6 messages (3 exchanges)
+        recent = self.short_term_buffer[user_id][-6:]
         return "\n".join(recent)
     
-    def recall_context(self, user_id: str, query: str, top_k: int = 2) -> str:
+    def recall_context(self, user_id: str, query: str, top_k: int = 4) -> str:
         """
-        Retrieve ONLY the most relevant memories.
-        Returns clean, factual information without context markers.
+        Retrieve the most relevant memories.
+        Returns clean, factual information.
         """
         memories = retrieve_memories(user_id, query, top_k)
         
@@ -124,11 +159,14 @@ class MemoryManager:
         
         # Format memories as clean facts
         formatted = []
+        seen = set()  # Avoid duplicates
+        
         for mem in memories[:top_k]:
-            # Clean up the memory text
             clean = mem.strip()
-            if len(clean) > 10:  # Only include substantial memories
+            # Only include substantial, unique memories
+            if len(clean) > 10 and clean not in seen:
                 formatted.append(f"- {clean}")
+                seen.add(clean)
         
         return "\n".join(formatted) if formatted else ""
     
