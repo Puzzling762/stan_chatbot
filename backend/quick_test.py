@@ -1,4 +1,3 @@
-# quick_test.py
 """
 Quick test to verify speed and search functionality
 """

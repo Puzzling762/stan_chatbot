@@ -1,4 +1,3 @@
-# chat_interactive.py
 """
 Enhanced interactive chat client for STAN chatbot
 with better error handling and user experience

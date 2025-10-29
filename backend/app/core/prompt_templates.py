@@ -1,4 +1,3 @@
-# app/core/prompt_templates.py
 
 def build_prompt(user_id: str, recent_messages: str, retrieved_memories: str, user_message: str) -> str:
     """
@@ -36,7 +35,6 @@ CRITICAL RULES:
 
 LENGTH: Usually 1-2 sentences. Go longer only for explanations/stories."""
 
-    # Context
     context = ""
     if recent_messages and len(recent_messages) > 10:
         context += f"\n[Recent chat]:\n{recent_messages}\n"
@@ -63,21 +61,18 @@ def should_save_to_memory(message: str, is_user: bool) -> bool:
     if len(message_lower) < 5:
         return False
     
-    # Skip filler
     skip = {'hi', 'hello', 'hey', 'sup', 'yo', 'ok', 'okay', 'yes', 'no', 
             'thanks', 'bye', 'lol', 'haha', 'cool', 'nice', 'good'}
     
     if message_lower in skip:
         return False
     
-    # Save preferences/facts
     important = ['my name', 'i am', "i'm", 'my fav', 'i love', 'i like', 
                  'i hate', 'i study', 'i work', 'i live', 'from']
     
     if any(word in message_lower for word in important):
         return True
     
-    # Save substantial messages
     if len(message.split()) >= 5:
         return True
     

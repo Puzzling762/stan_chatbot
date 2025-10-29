@@ -1,4 +1,3 @@
-# app/core/llm_client.py
 import os
 import httpx
 import asyncio
@@ -107,23 +106,19 @@ class RateLimiter:
             max_requests = limits["rpm"]
             
             now = datetime.now()
-            # Keep only requests from last 60 seconds
             self.requests = [t for t in self.requests 
                            if now - t < timedelta(seconds=60)]
             
-            # If under limit, allow immediately
             if len(self.requests) < max_requests:
                 self.requests.append(now)
                 return True
             
-            # Only wait if we've hit the limit
             oldest = self.requests[0]
             wait_time = (oldest + timedelta(seconds=60) - now).total_seconds()
             
             if wait_time > 0:
                 print(f"⏳ Rate limit reached, waiting {wait_time:.1f}s...")
                 await asyncio.sleep(wait_time + 0.2)
-                # Clear old requests after waiting
                 self.requests = [t for t in self.requests 
                                if datetime.now() - t < timedelta(seconds=60)]
             
@@ -350,7 +345,6 @@ async def generate(
     
     usage = usage_tracker.log_request()
     
-    # Only wait if we're actually hitting limits
     await rate_limiter.acquire()
     
     provider_func = {
