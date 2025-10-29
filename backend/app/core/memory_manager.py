@@ -6,157 +6,100 @@ import re
 
 class MemoryManager:
     def __init__(self):
-        self.short_term_buffer = {}  
-        self.max_buffer_size = 8 
+        self.short_term_buffer = {}  # user_id -> list of recent messages
+        self.max_buffer_size = 6  # Keep only last 6 messages for immediate context
     
     def save_interaction(self, user_id: str, message: str, turn_id: int, is_user: bool = True):
         """
-        Save messages intelligently:
-        - Short-term: All messages (for conversation flow)
-        - Long-term: Only user's meaningful info (facts, preferences)
+        Intelligently save messages.
+        Short-term: Everything (for flow)
+        Long-term: Only meaningful content
         """
-        
+        # Always save to short-term buffer
         self._add_to_buffer(user_id, message, is_user)
         
-        
-        if is_user and should_save_to_memory(message, is_user):
-           
-            extracted_facts = self._extract_key_info(message)
+        # Only save important stuff to long-term memory
+        if should_save_to_memory(message, is_user):
+            # Extract key information
+            clean_message = self._extract_key_info(message, is_user)
             
-            
-            if isinstance(extracted_facts, list):
-                for fact in extracted_facts:
-                    if fact:
-                        add_memory(
-                            user_id=user_id,
-                            text=fact,
-                            metadata={
-                                "turn_id": turn_id,
-                                "role": "user",
-                                "timestamp": datetime.now().isoformat()
-                            }
-                        )
-                        print(f"💾 Saved to memory: {fact}")
-            elif extracted_facts:
+            if clean_message:
+                role = "user" if is_user else "assistant"
                 add_memory(
                     user_id=user_id,
-                    text=extracted_facts,
+                    text=clean_message,
                     metadata={
                         "turn_id": turn_id,
-                        "role": "user",
+                        "role": role,
                         "timestamp": datetime.now().isoformat()
                     }
                 )
-                print(f"💾 Saved to memory: {extracted_facts}")
     
-    def _extract_key_info(self, message: str):
+    def _extract_key_info(self, message: str, is_user: bool) -> str:
         """
-        Extract MULTIPLE facts from a single message.
-        Returns list of facts or single fact string.
+        Extract only the KEY information from a message.
+        Examples:
+        - "My name is Alex" â†’ "User's name is Alex"
+        - "I love Attack on Titan" â†’ "Loves anime: Attack on Titan"
+        - "My favorite player is Ronaldo" â†’ "Favorite football player: Ronaldo"
+        """
+        if not is_user:
+            # Don't save STAN's responses to long-term memory
+            # (reduces clutter and "you mentioned" references)
+            return ""
         
-        Example:
-        "My name is Alex and I love anime, especially Attack on Titan"
-        → ["Name: Alex", "Loves: anime", "Favorite anime: Attack on Titan"]
-        """
         message_lower = message.lower()
-        facts = []
         
-       
-        name_patterns = [
-            r"my name is (\w+)",
-            r"i'?m (\w+)",
-            r"call me (\w+)"
-        ]
-        for pattern in name_patterns:
-            match = re.search(pattern, message_lower)
-            if match and len(match.group(1)) > 2:
-                name = match.group(1).title()
-                if name not in ['Okay', 'Good', 'Fine', 'Sad', 'Down', 'Happy']:
-                    facts.append(f"Name: {name}")
-                    break
+        # Pattern 1: Names
+        name_match = re.search(r"my name is (\w+)", message_lower)
+        if name_match:
+            return f"User's name: {name_match.group(1).title()}"
         
-        
-        compound_interest = re.search(r"i love (\w+),?\s*especially (.+?)(?:\.|!|\?|$)", message_lower)
-        if compound_interest:
-            category = compound_interest.group(1).strip()
-            specific = compound_interest.group(2).strip()
-            facts.append(f"Loves: {category}")
-            facts.append(f"Favorite {category}: {specific}")
-        else:
-            
-            interest_patterns = [
-                (r"my fav(?:orite)? (\w+) (?:is|are) (.+?)(?:\.|!|\?|$)", "Favorite {0}: {1}"),
-                (r"i love (.+?)(?:\.|!|\?|$)", "Loves: {0}"),
-                (r"i like (.+?)(?:\.|!|\?|$)", "Likes: {0}"),
-                (r"i'?m (?:really )?into (.+?)(?:\.|!|\?|$)", "Into: {0}"),
-                (r"i'?m a (?:big |huge )?fan of (.+?)(?:\.|!|\?|$)", "Fan of: {0}"),
-                (r"i hate (.+?)(?:\.|!|\?|$)", "Dislikes: {0}"),
-                (r"i can'?t stand (.+?)(?:\.|!|\?|$)", "Dislikes: {0}"),
-            ]
-            
-            for pattern, template in interest_patterns:
-                match = re.search(pattern, message_lower)
-                if match:
-                    if "{0}" in template and "{1}" in template:
-                        facts.append(template.format(match.group(1).title(), match.group(2).strip().title()))
-                    else:
-                        captured = match.group(1).strip()
-                        captured = re.sub(r'\s+', ' ', captured)
-                        facts.append(template.format(captured))
-                    break
-        
-       
-        background_patterns = [
-            (r"i'?m studying (.+?)(?:\.|!|\?|at |in |$)", "Studies: {0}"),
-            (r"i study (.+?)(?:\.|!|\?|at |in |$)", "Studies: {0}"),
-            (r"my major is (.+?)(?:\.|!|\?|$)", "Major: {0}"),
-            (r"i'?m (?:a |an )?(.+?) major", "Major: {0}"),
-            (r"i work (?:as |at )?(.+?)(?:\.|!|\?|$)", "Works: {0}"),
-            (r"i live in (.+?)(?:\.|!|\?|$)", "Lives in: {0}"),
-            (r"i'?m from (.+?)(?:\.|!|\?|$)", "From: {0}"),
-            (r"i go to (.+?)(?:university|college|school)", "Attends: {0}"),
+        # Pattern 2: Favorites
+        fav_patterns = [
+            (r"my fav(?:orite)? (\w+) is (.+?)(?:\.|$)", "Favorite {0}: {1}"),
+            (r"i love (.+?)(?:\.|$)", "Loves: {0}"),
+            (r"i like (.+?)(?:\.|$)", "Likes: {0}"),
+            (r"i'm a (?:big )?fan of (.+?)(?:\.|$)", "Fan of: {0}"),
+            (r"i hate (.+?)(?:\.|$)", "Dislikes: {0}"),
         ]
         
-        for pattern, template in background_patterns:
+        for pattern, template in fav_patterns:
             match = re.search(pattern, message_lower)
             if match:
-                captured = match.group(1).strip().title()
-                captured = re.sub(r'^(The |A |An )', '', captured)
-                facts.append(template.format(captured))
-                break
+                if "{0}" in template and "{1}" in template:
+                    return template.format(match.group(1).title(), match.group(2).strip())
+                else:
+                    return template.format(match.group(1).strip())
         
-       
-        activity_patterns = [
-            (r"i play (.+?)(?:\.|!|\?|$)", "Plays: {0}"),
-            (r"i watch (.+?)(?:\.|!|\?|$)", "Watches: {0}"),
-            (r"i listen to (.+?)(?:\.|!|\?|$)", "Listens to: {0}"),
+        # Pattern 3: Personal info
+        info_patterns = [
+            (r"i (?:study|am studying) (.+)", "Studies: {0}"),
+            (r"i (?:work|am working) (?:as |at )?(.+)", "Works: {0}"),
+            (r"i live in (.+)", "Lives in: {0}"),
+            (r"i'm from (.+)", "From: {0}"),
         ]
         
-        for pattern, template in activity_patterns:
+        for pattern, template in info_patterns:
             match = re.search(pattern, message_lower)
             if match:
-                facts.append(template.format(match.group(1).strip()))
-                break
+                return template.format(match.group(1).strip())
         
-        
-        if len(facts) > 1:
-            return facts 
-        elif len(facts) == 1:
-            return facts[0]  
-        elif len(message.split()) >= 6 and any(word in message_lower for word in ['i', 'my', 'me']):
-            return message 
+        # If no pattern matched but it's a substantial message, save as-is
+        if len(message.split()) >= 5:
+            return message
         
         return ""
     
     def _add_to_buffer(self, user_id: str, message: str, is_user: bool):
-        """Maintain rolling window of recent conversation."""
+        """Maintain rolling buffer of recent messages."""
         if user_id not in self.short_term_buffer:
             self.short_term_buffer[user_id] = []
         
         prefix = "User" if is_user else "STAN"
         self.short_term_buffer[user_id].append(f"{prefix}: {message}")
         
-        
+        # Keep only last N messages
         if len(self.short_term_buffer[user_id]) > self.max_buffer_size:
             self.short_term_buffer[user_id].pop(0)
     
@@ -165,36 +108,31 @@ class MemoryManager:
         if user_id not in self.short_term_buffer or not self.short_term_buffer[user_id]:
             return ""
         
-       
-        recent = self.short_term_buffer[user_id][-6:]
+        # Return last 4 messages (2 exchanges)
+        recent = self.short_term_buffer[user_id][-4:]
         return "\n".join(recent)
     
-    def recall_context(self, user_id: str, query: str, top_k: int = 5) -> str:
+    def recall_context(self, user_id: str, query: str, top_k: int = 2) -> str:
         """
-        Retrieve most relevant long-term memories.
-        Increased top_k to catch more related memories.
+        Retrieve ONLY the most relevant memories.
+        Returns clean, factual information without context markers.
         """
         memories = retrieve_memories(user_id, query, top_k)
         
         if not memories or len(memories) == 0:
             return ""
         
+        # Format memories as clean facts
         formatted = []
-        seen = set()  
-        
         for mem in memories[:top_k]:
+            # Clean up the memory text
             clean = mem.strip()
-
-            if len(clean) > 8 and clean not in seen:
+            if len(clean) > 10:  # Only include substantial memories
                 formatted.append(f"- {clean}")
-                seen.add(clean)
         
-        if not formatted:
-            return ""
-        
-        return "\n".join(formatted)
+        return "\n".join(formatted) if formatted else ""
     
     def clear_session(self, user_id: str):
-        """Clear short-term buffer (for new sessions)."""
+        """Clear short-term buffer."""
         if user_id in self.short_term_buffer:
             self.short_term_buffer[user_id] = []

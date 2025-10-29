@@ -8,6 +8,7 @@ app = FastAPI(
     version="1.0"
 )
 
+# include chat routes
 app.include_router(chat.router)
 
 @app.get("/")

@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
-PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()  # gemini, claude, groq, cohere
+PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -21,7 +20,6 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-haiku-20241022")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 COHERE_MODEL = os.getenv("COHERE_MODEL", "command-r-08-2024")
-
 
 PROVIDER_LIMITS = {
     "gemini": {
@@ -61,11 +59,9 @@ class UsageTracker:
     def log_request(self):
         now = datetime.now()
         
-    
         if (now - self.last_reset).days >= 1:
             self.daily_count = 0
             self.last_reset = now
-        
         
         if (now - self.minute_reset).seconds >= 60:
             self.minute_count = 0
@@ -74,15 +70,12 @@ class UsageTracker:
         self.daily_count += 1
         self.minute_count += 1
         
-        
         limits = PROVIDER_LIMITS.get(PROVIDER, {})
         rpd = limits.get("rpd", 1000)
         rpm = limits.get("rpm", 10)
         
-        
         daily_remaining = rpd - self.daily_count
         minute_remaining = rpm - self.minute_count
-        
         
         if self.daily_count % 100 == 0:  
             print(f"📊 Usage: {self.daily_count}/{rpd} requests today ({daily_remaining} left)")
@@ -103,6 +96,7 @@ usage_tracker = UsageTracker()
 
 
 class RateLimiter:
+    """FIXED: Only wait when actually approaching limits"""
     def __init__(self):
         self.requests = []
         self.lock = asyncio.Lock()
@@ -110,24 +104,30 @@ class RateLimiter:
     async def acquire(self):
         async with self.lock:
             limits = PROVIDER_LIMITS.get(PROVIDER, {"rpm": 10})
-            max_requests = limits["rpm"] - 2  
+            max_requests = limits["rpm"]
             
             now = datetime.now()
+            # Keep only requests from last 60 seconds
             self.requests = [t for t in self.requests 
                            if now - t < timedelta(seconds=60)]
             
+            # If under limit, allow immediately
             if len(self.requests) < max_requests:
                 self.requests.append(now)
                 return True
             
+            # Only wait if we've hit the limit
             oldest = self.requests[0]
             wait_time = (oldest + timedelta(seconds=60) - now).total_seconds()
             
             if wait_time > 0:
-                print(f"⏳ Rate limit, waiting {wait_time:.1f}s...")
+                print(f"⏳ Rate limit reached, waiting {wait_time:.1f}s...")
                 await asyncio.sleep(wait_time + 0.2)
+                # Clear old requests after waiting
+                self.requests = [t for t in self.requests 
+                               if datetime.now() - t < timedelta(seconds=60)]
             
-            self.requests.append(now)
+            self.requests.append(datetime.now())
             return True
 
 rate_limiter = RateLimiter()
@@ -324,7 +324,6 @@ async def _call_cohere(prompt: str, max_tokens: int, temperature: float, timeout
     return "Could you rephrase that?"
 
 
-
 async def generate(
     prompt: str,
     user_message: str = "",
@@ -351,6 +350,7 @@ async def generate(
     
     usage = usage_tracker.log_request()
     
+    # Only wait if we're actually hitting limits
     await rate_limiter.acquire()
     
     provider_func = {
@@ -369,8 +369,8 @@ async def generate(
             
             if result is None:  
                 if attempt == 0:
-                    print("⏳ Rate limit hit, waiting 3s...")
-                    await asyncio.sleep(3)
+                    print("⏳ Rate limit hit from API, waiting 5s...")
+                    await asyncio.sleep(5)
                     continue
                 return "Whoa, slow down a bit! Give me a sec and try again 😅"
             
