@@ -1,4 +1,3 @@
-# app/routers/chat.py
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import ChatRequest, ChatResponse
 from app.core.memory_manager import MemoryManager
@@ -23,7 +22,7 @@ async def handle_message(request: ChatRequest):
     # Get relevant memories (increase from 2 to 4 for better recall)
     retrieved = memory.recall_context(user_id, user_message, top_k=6)  
 
-    # FIXED: Actually get recent conversation context
+    # Actually get recent conversation context
     recent = memory.get_recent_context(user_id)
     
     prompt = build_prompt(

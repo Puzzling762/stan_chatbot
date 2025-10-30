@@ -46,7 +46,7 @@ PROVIDER_LIMITS = {
         "name": "Cohere Command R"
     }
 }
-
+#wasted my one day  credits of gemini just while testing so took a precaution
 class UsageTracker:
     """Track API usage to warn before hitting limits"""
     def __init__(self):
@@ -127,8 +127,8 @@ class RateLimiter:
 
 rate_limiter = RateLimiter()
 
-
-async def web_search(query: str, num_results: int = 3) -> str:
+# prblem while searching via chatbot ,ex tell me about carlos sainz, naruto
+async def web_search(query: str, num_results: int = 3) -> str:  
     """Search the web using Serper API"""
     if not SERPER_API_KEY:
         return ""
@@ -337,7 +337,7 @@ async def generate(
     
     search_results = ""
     if enable_search and user_message and needs_search(user_message):
-        print(f"🔍 Searching: {user_message}")
+        print(f" Searching: {user_message}")
         search_results = await web_search(user_message)
         
         if search_results:
@@ -372,13 +372,13 @@ async def generate(
         
         except httpx.TimeoutException:
             if attempt == 0:
-                print("⏳ Timeout, retrying once...")
+                print(" Timeout, retrying once...")
                 await asyncio.sleep(1)
                 continue
             return "Taking too long to think... try asking again!"
         
         except Exception as e:
-            print(f"❌ Error with {provider_name}: {e}")
+            print(f" Error with {provider_name}: {e}")
             if attempt == 0:
                 await asyncio.sleep(1)
                 continue
@@ -406,3 +406,4 @@ def print_provider_info():
 
 
 print_provider_info()
+#took groq just for testing but its free tier generousity made me a fan so used this only!!

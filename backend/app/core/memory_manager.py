@@ -1,4 +1,3 @@
-# app/core/memory_manager.py
 from app.db.vector_store import add_memory, retrieve_memories
 from app.core.prompt_templates import should_save_to_memory
 from datetime import datetime
@@ -6,8 +5,8 @@ import re
 
 class MemoryManager:
     def __init__(self):
-        self.short_term_buffer = {}  # user_id -> list of recent messages
-        self.max_buffer_size = 8  # Increased from 6 to 8 for better context
+        self.short_term_buffer = {}  
+        self.max_buffer_size = 8  
     
     def save_interaction(self, user_id: str, message: str, turn_id: int, is_user: bool = True):
         """
@@ -15,12 +14,9 @@ class MemoryManager:
         Short-term: Everything (for flow)
         Long-term: Only meaningful content
         """
-        # Always save to short-term buffer
         self._add_to_buffer(user_id, message, is_user)
         
-        # Only save important stuff to long-term memory
         if should_save_to_memory(message, is_user):
-            # Extract key information
             clean_message = self._extract_key_info(message, is_user)
             
             if clean_message:
@@ -34,18 +30,16 @@ class MemoryManager:
                         "timestamp": datetime.now().isoformat()
                     }
                 )
-    
+    # every second message made by limit getting reached so started saving messages which where given by user only
     def _extract_key_info(self, message: str, is_user: bool) -> str:
         """
         Extract only the KEY information from a message.
         """
         if not is_user:
-            # Don't save STAN's responses to long-term memory
             return ""
         
         message_lower = message.lower().strip()
         
-        # Pattern 1: Names
         name_patterns = [
             r"my name is (\w+)",
             r"i'?m (\w+)",
@@ -54,12 +48,11 @@ class MemoryManager:
         ]
         for pattern in name_patterns:
             match = re.search(pattern, message_lower)
-            if match and len(match.group(1)) > 2:  # Avoid "am", "is" etc
+            if match and len(match.group(1)) > 2:  
                 name = match.group(1).title()
-                if name not in ['Into', 'From', 'Love', 'Like']:  # Filter common verbs
+                if name not in ['Into', 'From', 'Love', 'Like']:  
                     return f"User's name: {name}"
         
-        # Pattern 2: Anime/Shows/Movies
         anime_patterns = [
             (r"i love (?:watching |the anime )?([^,.!?]+?)(?:\s+anime|\s+show)?(?:\.|,|$)", "Loves anime: {0}"),
             (r"i like (?:watching |the anime )?([^,.!?]+?)(?:\s+anime|\s+show)?(?:\.|,|$)", "Likes anime: {0}"),
@@ -71,11 +64,10 @@ class MemoryManager:
             match = re.search(pattern, message_lower)
             if match:
                 content = match.group(1).strip()
-                # Clean up common words
+                
                 if len(content) > 2 and content not in ['it', 'that', 'this', 'anime']:
                     return template.format(content.title())
         
-        # Pattern 3: Sports teams/clubs
         sports_patterns = [
             (r"my fav(?:orite)? (?:football |soccer )?(?:team|club) is ([^,.!?]+)", "Favorite club: {0}"),
             (r"i support ([^,.!?]+?)(?:\s+(?:fc|football club))?(?:\.|,|$)", "Supports: {0}"),
@@ -89,7 +81,7 @@ class MemoryManager:
                 if len(content) > 2:
                     return template.format(content.title())
         
-        # Pattern 4: General favorites/interests
+        
         general_patterns = [
             (r"my fav(?:orite)? (\w+) is ([^,.!?]+)", "Favorite {0}: {1}"),
             (r"i love ([^,.!?]+?)(?:\.|,|$)", "Loves: {0}"),
@@ -107,7 +99,6 @@ class MemoryManager:
                     if len(content) > 2:
                         return template.format(content.title())
         
-        # Pattern 5: Personal info
         info_patterns = [
             (r"i (?:study|am studying) ([^,.!?]+)", "Studies: {0}"),
             (r"i (?:work|am working) (?:as |at )?([^,.!?]+)", "Works: {0}"),
@@ -120,7 +111,6 @@ class MemoryManager:
             if match:
                 return template.format(match.group(1).strip().title())
         
-        # If message is substantial but no pattern matched, save as-is
         if len(message.split()) >= 5:
             return message
         
@@ -134,7 +124,6 @@ class MemoryManager:
         prefix = "User" if is_user else "STAN"
         self.short_term_buffer[user_id].append(f"{prefix}: {message}")
         
-        # Keep only last N messages
         if len(self.short_term_buffer[user_id]) > self.max_buffer_size:
             self.short_term_buffer[user_id].pop(0)
     
@@ -143,7 +132,6 @@ class MemoryManager:
         if user_id not in self.short_term_buffer or not self.short_term_buffer[user_id]:
             return ""
         
-        # Return last 6 messages (3 exchanges)
         recent = self.short_term_buffer[user_id][-6:]
         return "\n".join(recent)
     
@@ -157,13 +145,11 @@ class MemoryManager:
         if not memories or len(memories) == 0:
             return ""
         
-        # Format memories as clean facts
         formatted = []
-        seen = set()  # Avoid duplicates
+        seen = set()  
         
         for mem in memories[:top_k]:
             clean = mem.strip()
-            # Only include substantial, unique memories
             if len(clean) > 10 and clean not in seen:
                 formatted.append(f"- {clean}")
                 seen.add(clean)
