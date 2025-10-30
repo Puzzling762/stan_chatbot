@@ -2,7 +2,6 @@
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 > A Gen-Z personality chatbot with contextual memory, web search capabilities, and emotional intelligence built using FastAPI and multiple LLM providers.
 
