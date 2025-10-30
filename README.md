@@ -1,4 +1,4 @@
-# 🤖 STAN - Conversational AI Chatbot
+#  STAN - Conversational AI Chatbot
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
@@ -6,7 +6,7 @@
 
 > A Gen-Z personality chatbot with contextual memory, web search capabilities, and emotional intelligence built using FastAPI and multiple LLM providers.
 
-## 📋 Table of Contents
+##  Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
@@ -22,7 +22,7 @@
 
 ---
 
-## 🎯 Overview
+##  Overview
 
 **STAN** (Smart Talking AI Networker) is an intelligent conversational agent designed to provide human-like interactions with memory retention, contextual awareness, and emotional understanding. Built with modern Python frameworks, it supports multiple LLM providers and implements RAG (Retrieval-Augmented Generation) for enhanced conversational capabilities.
 
@@ -37,7 +37,7 @@
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 ┌─────────────┐
@@ -227,7 +227,7 @@ python chat_test.py
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 stan-chatbot/
@@ -260,7 +260,7 @@ stan-chatbot/
 
 ---
 
-## 📡 API Documentation
+##  API Documentation
 
 ### Endpoints
 
@@ -316,7 +316,7 @@ Once the server is running, visit:
 
 ---
 
-## ⚙️ Configuration
+##  Configuration
 
 ### LLM Provider Selection
 
@@ -403,7 +403,7 @@ python chat_test.py
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions are welcome! Please follow these steps:
 
@@ -423,7 +423,7 @@ Contributions are welcome! Please follow these steps:
 ---
 
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **Anthropic** - Claude API
 - **Google** - Gemini API
